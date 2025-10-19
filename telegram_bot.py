@@ -40,7 +40,6 @@ class TelegramBot:
         self.send_message(text)
 
     def send_status(self, total, profit, pct, trades, wins, balances):
-        # 수익률이 위에
         lines = []
         for coin in ["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-ADA","KRW"]:
             if coin in balances:
