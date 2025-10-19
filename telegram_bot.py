@@ -3,128 +3,112 @@ import config
 
 class TelegramBot:
     def __init__(self):
-        self.token = config.TELEGRAM_BOT_TOKEN
-        self.chat_id = config.TELEGRAM_CHAT_ID
+        self.token    = config.TELEGRAM_BOT_TOKEN
+        self.chat_id  = config.TELEGRAM_CHAT_ID
         self.base_url = f"https://api.telegram.org/bot{self.token}"
-    
-    def send_message(self, message):
-        """텔레그램 메시지 전송"""
-        if not config.ENABLE_TELEGRAM:
-            return
+        self.offset   = None
+
+    def _post(self, method, payload):
+        requests.post(f"{self.base_url}/{method}", data=payload)
+
+    def send_message(self, text):
+        self._post("sendMessage", {"chat_id": self.chat_id, "text": text})
+
+    def send_help(self):
+        help_text = (
+            "🤖 사용 가능한 명령어:\n"
+            "/help    – 이 도움말 표시\n"
+            "/status  – 평가액·수익 현황\n"
+            "/pause   – 자동매매 일시 중지\n"
+            "/resume  – 자동매매 재개\n"
+            "/stop    – 봇 완전 중지\n"
+        )
+        self.send_message(help_text)
+
+    def send_start_message(self, invest_amt, init_bal, balances):
+        lines = [
+            f"{coin}: 수량 {amt:,.2f}, 평가액 {amt*price:,.2f}원"
+            for coin,(amt,price) in balances.items()
+        ]
+        balance_text = "\n".join(lines)
+        text = (
+            f"🚀 자동매매 시작\n"
+            f"투자금: {invest_amt:,.2f}원\n"
+            f"초기잔고: {init_bal:,.2f}원\n\n"
+            f"📊 초기 보유 자산:\n{balance_text}"
+        )
+        self.send_message(text)
+
+    def send_status(self, total, profit, pct, trades, wins, balances):
+        # 수익률이 가장 위에
+        lines = []
+        for coin in ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-ADA", "KRW"]:
+            if coin in balances:
+                amt, price = balances[coin]
+                lines.append(f"{coin}: {amt:,.2f}개 ({amt*price:,.2f}원)")
+        balance_text = "\n".join(lines)
         
-        try:
-            url = f"{self.base_url}/sendMessage"
-            data = {
-                "chat_id": self.chat_id,
-                "text": message,
-                "parse_mode": "HTML"
-            }
-            response = requests.post(url, data=data)
-            return response.json()
-        except Exception as e:
-            print(f"텔레그램 전송 실패: {e}")
-    
-    def send_start_message(self, investment_amount, balance):
-        """시작 메시지"""
-        message = f"""
-🤖 <b>자동매매 봇 시작!</b>
+        text = (
+            f"📊 수익: {profit:+,.2f}원 ({pct:+.2f}%)\n"
+            f"평가액: {total:,.2f}원\n\n"
+            f"💰 보유 자산:\n{balance_text}\n\n"
+            f"📈 총거래: {trades}회 | 승리: {wins}회"
+        )
+        self.send_message(text)
 
-💰 <b>투자 정보</b>
-• 총 원화 잔고: {balance:,.0f}원
-• 투자 금액: {investment_amount:,.0f}원
-• 예비금: {config.SAFETY_RESERVE:,.0f}원
+    def send_final_result(self, final_bal, init_bal, profit, pct, trades, wins, duration, balances):
+        lines = [
+            f"{coin}: 수량 {amt:,.2f}, 평가액 {amt*price:,.2f}원"
+            for coin,(amt,price) in balances.items()
+        ]
+        balance_text = "\n".join(lines)
+        text = (
+            f"🏁 자동매매 최종 결과 ({duration})\n"
+            f"초기잔고: {init_bal:,.2f}원 → 최종평가액: {final_bal:,.2f}원\n"
+            f"순수익: {profit:+,.2f}원 ({pct:+.2f}%)\n"
+            f"총거래: {trades}회 | 승리: {wins}회\n\n"
+            f"📊 최종 보유 자산:\n{balance_text}"
+        )
+        self.send_message(text)
 
-🪙 <b>거래 코인</b>
-• 비트코인 (30%)
-• 이더리움 (20%)
-• 리플 (20%)
-• 솔라나 (20%)
-• 카르다노 (10%)
+    def send_buy_alert(self, coin, price, amount, target):
+        text = (
+            f"🔴 매수 알림\n"
+            f"코인: {coin}\n"
+            f"매수가: {price:,.2f}원\n"
+            f"투자금: {amount:,.2f}원\n"
+            f"목표가: {target:,.2f}원"
+        )
+        self.send_message(text)
 
-⚙️ <b>설정</b>
-• 그리드: {config.GRID_COUNT}개
-• 간격: {config.GRID_GAP}%
-• 손절: {config.STOP_LOSS}%
-• 목표: {config.DAILY_PROFIT_TARGET}%
+    def send_sell_alert(self, coin, price, profit, pct):
+        text = (
+            f"🔵 매도 알림\n"
+            f"코인: {coin}\n"
+            f"매도가: {price:,.2f}원\n"
+            f"수익: {profit:+,.2f}원 ({pct:.2f}%)"
+        )
+        self.send_message(text)
 
-✅ 24시간 자동 거래를 시작합니다!
-        """
-        self.send_message(message)
-    
-    def send_buy_alert(self, coin_name, price, amount, target_price):
-        """매수 알림"""
-        message = f"""
-🔴 <b>매수 완료</b>
+    def send_error_alert(self, err):
+        self.send_message(f"⚠️ 오류 발생: {err}")
 
-🪙 {coin_name}
-💵 매수가: {price:,.0f}원
-💰 금액: {amount:,.0f}원
-🎯 목표가: {target_price:,.0f}원 (+{config.GRID_GAP}%)
-        """
-        self.send_message(message)
-    
-    def send_sell_alert(self, coin_name, price, profit, profit_percent):
-        """매도 알림"""
-        message = f"""
-🔵 <b>매도 완료</b>
+    def send_stop_message(self, reason, total, profit):
+        text = (
+            f"🚫 자동매매 중지\n"
+            f"사유: {reason}\n"
+            f"최종평가액: {total:,.2f}원\n"
+            f"최종수익: {profit:+,.2f}원"
+        )
+        self.send_message(text)
 
-🪙 {coin_name}
-💵 매도가: {price:,.0f}원
-💰 수익: {profit:+,.0f}원 ({profit_percent:+.2f}%)
-        """
-        self.send_message(message)
-    
-    def send_status(self, total_value, profit, profit_percent, trades, wins):
-        """상태 리포트"""
-        win_rate = (wins / trades * 100) if trades > 0 else 0
-        message = f"""
-📊 <b>현재 상태</b>
+    def get_updates(self):
+        params = {"timeout": 10}
+        if self.offset:
+            params["offset"] = self.offset
+        resp = requests.get(f"{self.base_url}/getUpdates", params=params).json()
+        updates = resp.get("result", [])
+        if updates:
+            self.offset = updates[-1]["update_id"] + 1
+        return updates
 
-💵 총 평가액: {total_value:,.0f}원
-📈 총 수익: {profit:+,.0f}원 ({profit_percent:+.2f}%)
-
-📊 거래 통계
-• 총 거래: {trades}회
-• 성공: {wins}회
-• 승률: {win_rate:.1f}%
-        """
-        self.send_message(message)
-    
-    def send_daily_summary(self, daily_profit, trades, total_value):
-        """일일 요약"""
-        message = f"""
-📅 <b>일일 거래 요약</b>
-
-💰 오늘 수익: {daily_profit:+,.0f}원
-📊 거래 횟수: {trades}회
-💵 현재 평가액: {total_value:,.0f}원
-
-✨ 내일도 화이팅!
-        """
-        self.send_message(message)
-    
-    def send_stop_message(self, reason, final_value, final_profit):
-        """중지 메시지"""
-        message = f"""
-⏸ <b>자동매매 중지</b>
-
-📌 중지 사유: {reason}
-
-📊 최종 결과
-• 평가액: {final_value:,.0f}원
-• 총 수익: {final_profit:+,.0f}원
-
-모든 포지션이 정리되었습니다.
-        """
-        self.send_message(message)
-    
-    def send_error_alert(self, error_message):
-        """에러 알림"""
-        message = f"""
-⚠️ <b>오류 발생</b>
-
-{error_message}
-
-봇이 자동으로 재시작을 시도합니다.
-        """
-        self.send_message(message)
