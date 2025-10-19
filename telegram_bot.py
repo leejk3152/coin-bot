@@ -40,14 +40,13 @@ class TelegramBot:
         self.send_message(text)
 
     def send_status(self, total, profit, pct, trades, wins, balances):
-        # 수익률이 가장 위에
+        # 수익률이 위에
         lines = []
-        for coin in ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-ADA", "KRW"]:
+        for coin in ["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-ADA","KRW"]:
             if coin in balances:
-                amt, price = balances[coin]
+                amt,price = balances[coin]
                 lines.append(f"{coin}: {amt:,.2f}개 ({amt*price:,.2f}원)")
         balance_text = "\n".join(lines)
-        
         text = (
             f"📊 수익: {profit:+,.2f}원 ({pct:+.2f}%)\n"
             f"평가액: {total:,.2f}원\n\n"
