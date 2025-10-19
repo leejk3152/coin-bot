@@ -148,7 +148,7 @@ class AutoTradingBot:
         return False
 
     def check_all_signals(self):
-[O        for coin in self.portfolio:
+        for coin in self.portfolio:
             price=self.get_current_price(coin)
             if price==0: continue
             for g in self.coin_bots[coin]['grids']:
