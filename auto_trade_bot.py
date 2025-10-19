@@ -60,7 +60,7 @@ class AutoTradingBot:
     def check_risk_limits(self):
         total = self.calculate_total_value()
         pct = (total-self.initial_balance)/self.initial_balance*100 if self.initial_balance else 0
-[O        if pct < -config.STOP_LOSS:
+        if pct < -config.STOP_LOSS:
             self.telegram.send_stop_message(f"손실 한도 초과 ({pct:.2f}%)", total, total-self.initial_balance)
             return False
         if pct >= config.DAILY_PROFIT_TARGET:
